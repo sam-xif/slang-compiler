@@ -1,0 +1,82 @@
+<!DOCTYPE xml>
+
+<!-- This will be the new format for the language definition format -->
+
+<xml>
+	<lang>
+		<tag name="SCANNER">
+			<!-- The "array" var type expects a comma separated list. The xml parser converts this list into an array of strings 
+			     that can be accessed by the program. -->
+			<var type="array" name="KEYWORDS">if, then, else, func, returns, alias, class, global, hidden, and, or</var>
+			<var type="array" name="SYS_KEYWORDS">lwclass, def_type</var>
+		</tag>
+		<tag name="PARSER">
+			
+		</tag>
+		<tag name="CFG">
+			<![CDATA[
+			
+			// TODO: Define "or" and "and" operator tokens
+			CONDITION : (CONDITION)
+				| CONDITION '==' CONDITION
+				| CONDITION '!=' CONDITION
+				| CONDITION '>' CONDITION
+				| CONDITION '<' CONDITION
+				| CONDITION '>=' CONDITION
+				| CONDITION '<=' CONDITION
+				| CONDITION 'or' CONDITION
+				| CONDITION 'and' CONDITION
+				;
+
+			IF_STATEMENT : if EXPR then BLOCK ELSE_IF
+
+			ELSE_IF : else BLOCK
+				| else if EXPR then BLOCK ELSE_IF
+				| $(EPSILON)
+				;
+			// $(EPSILON) is a constant denoting the empty string
+
+			// WHILE_LOOP : ...
+
+			// Arithmetic expression
+			ARITH : (ARITH) 
+				| ARITH+ARITH
+				| ARITH-ARITH
+				| ARITH*ARITH
+				| ARITH/ARITH
+				| ID
+				| NUMBER
+				;
+
+			BLOCK : { BLOCK }
+				| BLOCK NEWLINE
+				| EXPR
+				;
+
+			PARAM_LIST : EXPR
+				| PARAM_LIST,PARAM_LIST
+				;
+
+			FUNC_CALL : id(PARAM_LIST)
+				| id
+				;
+
+			EXPR : EXPR NEWLINE
+				| ARITH
+				| ID
+				| NUMBER
+				| FUNC_CALL
+				| ASSIGN
+				;
+	
+			// $(134) == "<-"
+			ASSIGN : ID $(134) ASSIGN | EXPR
+				;
+			
+			]]>
+		</tag>
+		<tag name="CGEN">
+			
+		</tag>
+	</lang>
+</xml>

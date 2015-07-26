@@ -1,0 +1,259 @@
+
+// Prototype needed to alleviate errors.
+static bool _process_rule(cfg_rule_t *cur_rule, parser_t *parse, pt_node_t *parent);
+
+
+// If output is true, the parse->index is set to the next token to be matched. 
+// If false, parse->index is the same as input
+// This function is guaranteed not to modify parse->save_index.
+static bool _check_match(match_t *match, match_t *next_match, parser_t *parse,
+	pt_node_t *parent, int *out_times_matched, bool *out_is_terminal) {
+
+	int save_index = parse->index;
+
+	// TODO: replace all token lists with token_list_t
+	token_list_t *tok_list = parse->token_list;
+
+	int i = parse->index;
+	int num_times_matched = 0;
+	if (i == tok_list->length) goto return_true;
+
+	if (cfg_is_start_symbol(&(match->match_token), parse->grammar)) {
+		const char *name = tok_to_str(match->match_token);
+		pt_node_t *tmp = MALLOC_ONE(pt_node_t);
+
+		tmp->type = NODE_NT;
+		tmp->parent = parent;
+		tmp->data = match->match_token;
+		tmp->children = list_alloc(NODE_LIST_DEFAULT_CAPACITY, sizeof(pt_node_t *));
+		// Assumes parent has a list allocated
+		list_add_item(&tmp, parent->children);
+
+
+		// TODO: Add code to process this more than one time based on the bound indicators
+		bool result = _process_rule(cfg_get_rule_by_name(name, parse->grammar), parse, tmp);
+		free(name);
+
+		*out_is_terminal = false;
+		if (result == true) {
+			(*out_times_matched)++;
+			*out_is_terminal = false;
+			return true;
+		}
+		else {
+			*out_times_matched = 0;
+			return false;
+		}
+	}
+
+	// We do not increment by one here as we usually do when calling this function. 
+	i = get_next_after_whitespace(i, tok_list);
+
+	// Lower bound
+
+	if (match->match_lowerbound == -1) {
+		// Infinite
+		if (match->match_upperbound != -1) {
+			puts("Poorly formed grammar.");
+			errno = ENOENT;
+			goto return_false;
+		}
+
+		do {
+			// Check once before checking "while" condition.
+			if (cfg_symbol_compare(GET_ITEM_AS(tok_list, i, token_t), &(next_match->match_token))) {
+				// Return true because * allows matching 0 times
+				goto return_true;
+			}
+
+			// Insert code to add to list here
+			pt_node_t *tmp_child = MALLOC_ONE(pt_node_t);
+			tmp_child->type = NODE_LEAF;
+			tmp_child->data = GET_TOKEN_AT(tok_list, i);
+			tmp_child->parent = parent;
+			tmp_child->children = NULL;
+
+			list_add_item(&tmp_child, parent->children);
+
+			i++;
+			num_times_matched++;
+		} while ((cfg_symbol_compare(GET_ITEM_AS(tok_list, i, token_t), &(match->match_token)) && i < tok_list->length));
+	}
+	else {
+
+		if (match->match_upperbound == -1){
+			while (cfg_symbol_compare(GET_ITEM_AS(tok_list, i, token_t), &(match->match_token))
+				&& i < tok_list->length) {
+
+				// Insert code to add to list here
+				pt_node_t *tmp_child = MALLOC_ONE(pt_node_t);
+				tmp_child->type = NODE_LEAF;
+				tmp_child->data = GET_TOKEN_AT(tok_list, i);
+				tmp_child->parent = parent;
+				tmp_child->children = NULL;
+
+				list_add_item(&tmp_child, parent->children);
+
+				i++;
+				num_times_matched++;
+			}
+
+			if (num_times_matched < match->match_lowerbound) {
+				goto return_false;
+			}
+		}
+		else {
+			while (cfg_symbol_compare(GET_ITEM_AS(tok_list, i, token_t), &(match->match_token))
+				&& i < tok_list->length
+				&& num_times_matched < match->match_upperbound) {
+
+				// Insert code to add to list here
+				pt_node_t *tmp_child = MALLOC_ONE(pt_node_t);
+				tmp_child->type = NODE_LEAF;
+				tmp_child->data = GET_TOKEN_AT(tok_list, i);
+				tmp_child->parent = parent;
+				tmp_child->children = NULL;
+
+				list_add_item(&tmp_child, parent->children);
+
+				i++;
+				num_times_matched++;
+			}
+
+			if (num_times_matched < match->match_lowerbound) {
+				goto return_false;
+			}
+			/*
+			else if (num_times_matched > match->match_upperbound) {
+			i -= (num_times_matched - match->match_upperbound);
+			num_times_matched -= (num_times_matched - match->match_upperbound);
+			goto return_true;
+			}
+			*/
+		}
+		goto return_true;
+	}
+
+return_true:
+
+	parse->index = i;
+	*out_times_matched = num_times_matched;
+	*out_is_terminal = true;
+	return true;
+
+
+return_false:
+
+	parse->index = save_index;
+	*out_is_terminal = true;
+	return false;
+}
+
+bool _process_rule(cfg_rule_t *cur_rule, parser_t *parse, pt_node_t *parent) {
+	pt_node_t *save_node = MALLOC_ONE(pt_node_t);
+	*save_node = *parent;
+	save_node->children = NULL;
+
+	bool ret = false;
+
+	bool has_backup = false;
+
+	// Save the original starting point
+	int origin_index = parse->index;
+	int tmp_index = origin_index;
+
+	int i;
+	for (i = 0; i < cur_rule->match_data->length; i++) {
+		int j;
+		list_t *cur_match_list = (GET_ITEM_AS(cur_rule->match_data, i, list_t));
+		parse->save_index = parse->index;
+		for (j = 0; j < cur_match_list->length; j++) {
+			int k;
+			int times_matched;
+			bool is_terminal;
+
+			bool result = _check_match(GET_ITEM_AS(cur_match_list, j, match_t),
+				j + 1 < cur_match_list->length
+				? GET_ITEM_AS(cur_match_list, j + 1, match_t)
+				: NULL, parse, parent, &times_matched, &is_terminal);
+
+			parse->save_result = result;
+
+			if (result == true) {
+				// Set status to true and continue matching
+				ret = true;
+				continue;
+			}
+			else {
+				// Restore original state
+				parse->index = parse->save_index;
+
+				parser_free_pt(parent, false);
+				*parent = *save_node;
+				parent->children = list_alloc(NODE_LIST_DEFAULT_CAPACITY, sizeof(pt_node_t *));
+
+				// Set status to false and break out of loop
+				ret = false;
+				break;
+			}
+		}
+
+		// If the entire string matched correctly, then execute this code.
+		if (ret == true) {
+			if (i + 1 < cur_rule->match_data->length) {
+				tmp_index = parse->index;
+				parse->index = parse->save_index;
+				continue;
+			}
+			else {
+				// If finished all the matches and status is true, return.
+				return ret;
+			}
+		}
+	}
+
+	return ret;
+}
+
+// Sets the parser token list to the tok_list parameter by default
+// Returns NULL on error or if grammar doesn't match input
+pt_node_t *parse_recursive_descent(list_t *tok_list, parser_t *parse) {
+	parse->token_list = tok_list;
+	parse->state = PARSE_WORKING;
+	parse->symbol_stack = stack_alloc(LIST_DEFAULT_CAPACITY, sizeof(token_t));
+
+	// Create an end of stream token.
+	token_t eos;
+	eos.type = token_end_of_stream;
+	eos.data_ptr = NULL;
+	eos.data_len = 0;
+	eos.index_in_buf = 0;
+
+	// Pushes the end of stream symbol onto the stack.
+	stack_push(&eos, parse->symbol_stack);
+
+	// Creates the root node of the parse tree.
+	pt_node_t *root = MALLOC_ONE(pt_node_t);
+	root->parent = NULL;
+	root->children = list_alloc(NODE_LIST_DEFAULT_CAPACITY, sizeof(pt_node_t *));
+	root->type = NODE_ROOT;
+
+	list_t *rule_list = parse->grammar->rule_list;
+
+	int i;
+	for (i = 0; i < rule_list->length; i++) {
+		root->data = *(GET_ITEM_AS(rule_list, i, cfg_rule_t)->start_symbol);
+
+		if (_process_rule(GET_ITEM_AS(parse->grammar->rule_list, i, cfg_rule_t), parse, root) == true) {
+			parse->state = PARSE_FINISH;
+			parse->error = SLANG_NO_ERR;
+			parse->result = root;
+			return root;
+		}
+	}
+
+	parse->state = PARSE_ERR;
+	parse->error = SLANG_GENERIC_ERR;
+	parse->result = NULL;
+	return NULL;
+}

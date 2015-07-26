@@ -1,0 +1,105 @@
+
+// To add in a token code, type: $(code), where code is the number in the token enum that represents that token. Example, for whitespace: $(152)
+// Or, if its a one or two char token, $(<token>) is also acceptable, where token is the literal token. For example, $(+) represents a + sign.
+
+// The parser should allow for extra whitespace in between every token
+
+[SCANNER]
+
+// Add more as needed
+// {} constitutes an array
+KEYWORDS : { if, then, else, func, returns, alias, class, global, hidden, and, or }
+SYS_KEYWORDS : { lwclass, def_type }
+
+[PARSER]
+
+// All the starting symbols and other non-terminals
+NON_TERMINALS : { FUNC_CALL, ARITH, EXPR, ASSIGN } 
+
+[CFG]
+
+
+// Macros such as these must be defined before they are used in the file.
+// (Simply to avoid code complexity)
+replace NEWLINE $(10)
+replace NUMBER INTEGER | DECIMAL
+replace INTEGER $(150)
+replace DECIMAL $(151)
+
+replace ID $(131)
+replace EPSILON $(153)
+
+replace STRING $(133)
+
+
+TEST_RULE : (TEST_RULE2) ;
+
+TEST_RULE2 : ID + ID ;
+
+// TODO: Define "or" and "and" operator tokens
+CONDITION : EXPR
+	| (CONDITION)
+	| CONDITION $(==) CONDITION
+	| CONDITION $(!=) CONDITION
+	| CONDITION $(>) CONDITION
+	| CONDITION $(<) CONDITION
+	| CONDITION $(>=) CONDITION
+	| CONDITION $(<=) CONDITION
+	| CONDITION $(or) CONDITION
+	| CONDITION $(and) CONDITION
+	;
+
+IF_STATEMENT : if EXPR then BLOCK ELSE_IF ; 
+
+ELSE_IF : else BLOCK
+	| else if EXPR then BLOCK ELSE_IF
+	| EPSILON
+	;
+
+// $(EPSILON) is a constant denoting the empty string
+
+// WHILE_LOOP : ...
+
+// Arithmetic expression
+ARITH : (ARITH) 
+	| ARITH $(+) ARITH
+	| ARITH $(-) ARITH
+	| ARITH $(*) ARITH
+	| ARITH $(/) ARITH
+	| ID
+	| NUMBER
+	;
+
+BLOCK : { BLOCK }
+	| STATEMENT(*)
+	| EXPR
+	;
+
+STATEMENT : EXPR NEWLINE ;
+
+PARAMETERS : EXPR
+	| PARAMETERS,PARAMETERS
+	;
+
+FUNC_CALL : ID(PARAMETERS)
+	;
+
+EXPR : ARITH
+	| ID
+	| NUMBER
+	| FUNC_CALL
+	| ASSIGN
+	| STRING
+	;
+
+MEMBER_ACCESS : ID.ID | EXPR.ID ;
+	
+// $(134) == <-
+// But, I change it back to equals
+ASSIGN : ID(1-*) $(=) EXPR ;
+
+[CGEN]
+
+// TODO: Put variables for cgen here, such as a list of operators for the intermediate lang
+UNARY_OP : { call }
+BINARY_OP : { +, -, /, *, &, | }

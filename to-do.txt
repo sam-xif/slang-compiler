@@ -1,0 +1,41 @@
+
+To-do list:
+
+- Start actually coding stuff (parser)
+
+- Make sure error checking is implemented for parts of the code that have a potential to go wrong.
+	Also remove printing program error messages once slang_errno.h is set up (except for reporting errors in the user's source code).
+
+- remove _t suffix that you added and prepend all the names with a prefix (doesn't necessarily have to be done now, but eventually)
+	- The prefix is SLang_ or SL_ (probably the latter cuz its shorter)
+	- Also untypedef the original structs/enums, and have typedef statements on the important structs/enums. For example:
+
+	struct scanner {
+		// ...
+	};
+
+	// It's an important type, so:
+	typedef scanner SL_scanner;
+
+	--or--
+
+	typedef struct scanner {
+		// ...
+	} SL_scanner;
+
+- Clean up all this code! Remove unnecessary comments! Make functions shorter and cleaner, especially scanner_get_token(), 
+  which is probably the worst function I've ever written!!!!
+
+- Either get rid of the _s functions and add that preprocessor definition, or add some #ifs because it wont compile on linux like that.
+- Linux also doesn't know what errno_t is, which is another windows-specific thing. 
+
+- Replace all the _s functions with the macro versions, and replace the error checking code with the new macros as well 
+  (RETURN_IF_ERROR, RETURN_VAL_IF_ERROR, etc.).
+
+- Make all token_t parameters the same: either pointers or values.
+
+NAMING CONVENTIONS:
+
+Name all important structs with a slang_ prefix. Leave the _t for now
+Name all functions with a prefix indicating the file that they're in. For example: parse_recursive_descent indicates that the function
+is a parser function, that operates on slang_parser_t (struct slang_parser).
