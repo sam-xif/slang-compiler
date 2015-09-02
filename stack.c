@@ -14,7 +14,7 @@ void *stack_pop(stack_t *stack) {
 		RETURN_VAL_IF_ERROR(MEMCPY(ret, stack->element_size, peek, stack->element_size), NULL);
 	}
 	else {
-		errno = SLANG_MEM_ERR;
+		errno = SLANG_MEM_ERROR;
 		raise_error("queue.c", slang_create_error_token(16, 0), NULL);
 	}
 

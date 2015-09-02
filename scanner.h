@@ -24,7 +24,10 @@ typedef enum {
 // Scanner data structure
 typedef struct {
 	FILE *fp;				// If there is a file being scanned, this will be set.
-	char *buf;				// Array of characters to be scanned. The file fp will be read into this buffer.
+	const char *file_name;
+	bool scanning_file;
+
+	const char *buf;		// Array of characters to be scanned. The file fp will be read into this buffer.
 	unsigned int buf_length;	// Length of buf
 	int index;				// Position within buf
 	list_t *token_list;		// List of tokens that have been collected. NULL by default. It is set by the scan function

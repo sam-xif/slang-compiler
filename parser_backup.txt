@@ -1,13 +1,13 @@
 
 // Prototype needed to alleviate errors.
-static bool _process_rule(cfg_rule_t *cur_rule, parser_t *parse, pt_node_t *parent);
+static bool _process_rule(cfg_rule_t *cur_rule, parser_t *parse, st_node_t *parent);
 
 
 // If output is true, the parse->index is set to the next token to be matched. 
 // If false, parse->index is the same as input
 // This function is guaranteed not to modify parse->save_index.
 static bool _check_match(match_t *match, match_t *next_match, parser_t *parse,
-	pt_node_t *parent, int *out_times_matched, bool *out_is_terminal) {
+	st_node_t *parent, int *out_times_matched, bool *out_is_terminal) {
 
 	int save_index = parse->index;
 
@@ -20,12 +20,12 @@ static bool _check_match(match_t *match, match_t *next_match, parser_t *parse,
 
 	if (cfg_is_start_symbol(&(match->match_token), parse->grammar)) {
 		const char *name = tok_to_str(match->match_token);
-		pt_node_t *tmp = MALLOC_ONE(pt_node_t);
+		st_node_t *tmp = MALLOC_ONE(st_node_t);
 
 		tmp->type = NODE_NT;
 		tmp->parent = parent;
 		tmp->data = match->match_token;
-		tmp->children = list_alloc(NODE_LIST_DEFAULT_CAPACITY, sizeof(pt_node_t *));
+		tmp->children = list_alloc(NODE_LIST_DEFAULT_CAPACITY, sizeof(st_node_t *));
 		// Assumes parent has a list allocated
 		list_add_item(&tmp, parent->children);
 
@@ -67,7 +67,7 @@ static bool _check_match(match_t *match, match_t *next_match, parser_t *parse,
 			}
 
 			// Insert code to add to list here
-			pt_node_t *tmp_child = MALLOC_ONE(pt_node_t);
+			st_node_t *tmp_child = MALLOC_ONE(st_node_t);
 			tmp_child->type = NODE_LEAF;
 			tmp_child->data = GET_TOKEN_AT(tok_list, i);
 			tmp_child->parent = parent;
@@ -86,7 +86,7 @@ static bool _check_match(match_t *match, match_t *next_match, parser_t *parse,
 				&& i < tok_list->length) {
 
 				// Insert code to add to list here
-				pt_node_t *tmp_child = MALLOC_ONE(pt_node_t);
+				st_node_t *tmp_child = MALLOC_ONE(st_node_t);
 				tmp_child->type = NODE_LEAF;
 				tmp_child->data = GET_TOKEN_AT(tok_list, i);
 				tmp_child->parent = parent;
@@ -108,7 +108,7 @@ static bool _check_match(match_t *match, match_t *next_match, parser_t *parse,
 				&& num_times_matched < match->match_upperbound) {
 
 				// Insert code to add to list here
-				pt_node_t *tmp_child = MALLOC_ONE(pt_node_t);
+				st_node_t *tmp_child = MALLOC_ONE(st_node_t);
 				tmp_child->type = NODE_LEAF;
 				tmp_child->data = GET_TOKEN_AT(tok_list, i);
 				tmp_child->parent = parent;
@@ -149,8 +149,8 @@ return_false:
 	return false;
 }
 
-bool _process_rule(cfg_rule_t *cur_rule, parser_t *parse, pt_node_t *parent) {
-	pt_node_t *save_node = MALLOC_ONE(pt_node_t);
+bool _process_rule(cfg_rule_t *cur_rule, parser_t *parse, st_node_t *parent) {
+	st_node_t *save_node = MALLOC_ONE(st_node_t);
 	*save_node = *parent;
 	save_node->children = NULL;
 
@@ -190,7 +190,7 @@ bool _process_rule(cfg_rule_t *cur_rule, parser_t *parse, pt_node_t *parent) {
 
 				parser_free_pt(parent, false);
 				*parent = *save_node;
-				parent->children = list_alloc(NODE_LIST_DEFAULT_CAPACITY, sizeof(pt_node_t *));
+				parent->children = list_alloc(NODE_LIST_DEFAULT_CAPACITY, sizeof(st_node_t *));
 
 				// Set status to false and break out of loop
 				ret = false;
@@ -217,7 +217,7 @@ bool _process_rule(cfg_rule_t *cur_rule, parser_t *parse, pt_node_t *parent) {
 
 // Sets the parser token list to the tok_list parameter by default
 // Returns NULL on error or if grammar doesn't match input
-pt_node_t *parse_recursive_descent(list_t *tok_list, parser_t *parse) {
+st_node_t *parse_recursive_descent(list_t *tok_list, parser_t *parse) {
 	parse->token_list = tok_list;
 	parse->state = PARSE_WORKING;
 	parse->symbol_stack = stack_alloc(LIST_DEFAULT_CAPACITY, sizeof(token_t));
@@ -233,9 +233,9 @@ pt_node_t *parse_recursive_descent(list_t *tok_list, parser_t *parse) {
 	stack_push(&eos, parse->symbol_stack);
 
 	// Creates the root node of the parse tree.
-	pt_node_t *root = MALLOC_ONE(pt_node_t);
+	st_node_t *root = MALLOC_ONE(st_node_t);
 	root->parent = NULL;
-	root->children = list_alloc(NODE_LIST_DEFAULT_CAPACITY, sizeof(pt_node_t *));
+	root->children = list_alloc(NODE_LIST_DEFAULT_CAPACITY, sizeof(st_node_t *));
 	root->type = NODE_ROOT;
 
 	list_t *rule_list = parse->grammar->rule_list;

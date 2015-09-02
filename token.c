@@ -12,21 +12,22 @@ const char *tok_to_str(token_t t) {
 		char *ret = (char *)malloc(buffer_size);
 
 		if (ret == NULL) {
-			errno = SLANG_MEM_ERR;
+			errno = SLANG_MEM_ERROR;
 			raise_error("token.c", slang_create_error_token(16, 0), NULL);
 			return NULL;
 		}
 
 		RETURN_VAL_IF_ERROR(STRNCPY(ret, buffer_size, t.data_ptr, t.data_len), NULL);
 
-		// Add null-terminating character
-		ret[t.data_len] = '\0';
+		// Add null-terminating character (don't need this since strncpy does it for us)
+		//ret[t.data_len] = '\0';
 
 		return ret;
 	}
 	else {
 		errno = SLANG_INVALID_ARG;
 		raise_error("token.c", t, NULL);
+		return NULL;
 	}
 }
 

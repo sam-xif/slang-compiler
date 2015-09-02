@@ -9,19 +9,12 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-	/*
-typedef list_t function_list_t;
-typedef struct program_def {
-	function_list_t *function_list;
-} program_def_t;
 
-typedef struct function_def {
-	const char *name;
-	const char *return_val;
-	/* parameter list */
-	/* list of statements in the body *
-} function_def_t;
-*/
+
+typedef struct ilcgen_state {
+	int temp_var_index;
+	int label_index;
+} ilcgen_state_t;
 
 
 #ifdef __cplusplus

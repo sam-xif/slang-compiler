@@ -83,14 +83,17 @@ void slang_perror(const char *str, slang_errno_state_t *errno_state) {
 		}
 		else printf(" ");
 		
-		switch (errno) {
-		case SLANG_SYNTAX_ERR:
+		switch (errno) { 
+		case SLANG_GENERIC_ERROR:
+			printf("An error occurred");
+			break;
+		case SLANG_SYNTAX_ERROR:
 			printf("Syntax error");
 			break;
 		case SLANG_SEMANTIC_ERR:
 			printf("Semantic error");
 			break;
-		case SLANG_IO_ERR:
+		case SLANG_IO_ERROR:
 			printf("Error during file operation");
 			break;
 		case SLANG_COLLECTION_EMPTY:
@@ -99,7 +102,7 @@ void slang_perror(const char *str, slang_errno_state_t *errno_state) {
 		case SLANG_PARSE_REJECTED:
 			printf("The parse was rejected, possibly due to a syntax error");
 			break;
-		case SLANG_MEM_ERR:
+		case SLANG_MEM_ERROR:
 			printf("Error while attempting to allocate memory");
 			break;
 		case SLANG_INVALID_ARG:
@@ -107,6 +110,9 @@ void slang_perror(const char *str, slang_errno_state_t *errno_state) {
 			break;
 		case SLANG_BAD_GRAMMAR:
 			printf("The grammar that was found is invalid");
+			break;
+		case SLANG_UNEXPECTED_EOF:
+			printf("Unexpected EOF while reading stream");
 			break;
 		}
 	}

@@ -35,7 +35,7 @@ char *ExePath() {
 
 // Entry point
 int main(int argc, char **argv) {
-	
+
 	RESET_ERRNO;
 	global_slang_errno_state = slang_create_errno_state();
 	
@@ -58,7 +58,7 @@ int main(int argc, char **argv) {
 		buf[file_length] = '\0'; // Add null-terminating character to the end of the buffer
 
 		if (fclose(fp) == EOF) {
-			errno = SLANG_IO_ERR;
+			errno = SLANG_IO_ERROR;
 			raise_error("main.c", slang_create_error_token(59, 0), NULL);
 			return;
 		}
@@ -81,7 +81,7 @@ int main(int argc, char **argv) {
 		//free(sample_code);
 		//sample_code = "func example_func(int x, int y) returns void\n{\nif (asdf == (2*5 == -4)) then \n{\nxyz = (asd == 22)\n} else {\na = b\n}\n\nint x = { f\n }\n}\n\n\n";
 		if (fclose(fp) == EOF) {
-			errno = SLANG_IO_ERR;
+			errno = SLANG_IO_ERROR;
 			raise_error("main.c", slang_create_error_token(59, 0), NULL);
 			return;
 		}
@@ -102,24 +102,29 @@ int main(int argc, char **argv) {
 		remove_all_tokens_by_type(scan->token_list, token_cr);
 
 		parser_t *parse = parser_alloc(cfg);
-		pt_node_t *p = parse_recursive_descent(scan->token_list, parse);
-
+		st_node_t *p = parse_recursive_descent(scan->token_list, parse);
+		
 		CLEAR_ERROR_QUEUE;
 
 		if (p != NULL) { 
-
-			node_list_t *leaves = pt_get_leaves(p);
-
-			//list_free(leaves, NULL);
 			// Reorganizes the nodes to be more coherent and sensical.
+
 			parse_rd_rewrite_tree(p);
 
-			leaves = pt_get_leaves(p);
+			node_list_t *leaves = st_get_leaves(p);
+			for (i = 0; i < leaves->length; i++) {
+				const char *data = NULL;
+				if ((data = tok_to_str(GET_ITEM_AS(leaves, i, st_node_t)->data)) != NULL) {
+					printf(data);
+				}
+				free(data);
+			}
 
-			// To get all the functions defined within the parsed code:
-			node_list_t *func_nodes = pt_get_nodes_by_name(p, "EXPR");
+			node_list_t *tmp = st_get_nodes_by_name(p, "FUNCTION_CALL");
 
-			parser_free_pt(p, true);
+			cgen_parse_tree_to_program_def(p);
+
+			parser_free_st(p, true);
 			parse->result = NULL;
 		}
 

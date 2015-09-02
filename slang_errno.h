@@ -9,30 +9,23 @@
 extern "C" {
 #endif
 
-#define SLANG_NO_ERR		0	/* NOERROR */
-
-/*
- * This tells the caller that the error message has most likely already been printed to the screen,
- * and that there is no need to call perror() in this case.
- *
- * TODO: Eventually replace all occurrences of ENOENT with GENERIC_ERROR for code clarity.
- */
-#define SLANG_GENERIC_ERR		2	/* ENOENT */
+#define SLANG_NO_ERROR		0	/* NOERROR */
 
 // Probably just get rid of this:
-#define SLANG_MEM_ERR			12	/* ENOMEM */
+#define SLANG_MEM_ERROR			12	/* ENOMEM */
 
 /* Begin Slang-specific codes */
-#define SLANG_SYNTAX_ERR		141	/* errno.h uses integers up to 140, so we start Slang-specific errors at 141 */
-#define SLANG_SEMANTIC_ERR		142	/* Error in semantics (incorrect usage of operators or types) */
-#define SLANG_IO_ERR			143	/* File IO error. eg. file doesn't exist */
-#define SLANG_COLLECTION_EMPTY	144
-#define SLANG_PARSE_REJECTED	145
-#define SLANG_MEM_ERR			146
-#define SLANG_BAD_PARSE_TREE	147
-#define SLANG_INVALID_ARG		148
-#define SLANG_BAD_GRAMMAR		149
-#define SLANG_UNEXPECTED_EOF	150
+#define SLANG_GENERIC_ERROR		141
+#define SLANG_SYNTAX_ERROR		142	/* errno.h uses integers up to 140, so we start Slang-specific errors at 141 */
+#define SLANG_SEMANTIC_ERR		143	/* Error in semantics (incorrect usage of operators or types) */
+#define SLANG_IO_ERROR			144	/* File IO error. eg. file doesn't exist */
+#define SLANG_COLLECTION_EMPTY	145
+#define SLANG_PARSE_REJECTED	146
+#define SLANG_MEM_ERROR			147
+#define SLANG_BAD_PARSE_TREE	148
+#define SLANG_INVALID_ARG		149
+#define SLANG_BAD_GRAMMAR		150
+#define SLANG_UNEXPECTED_EOF	151
 
 #define PRINTERROR slang_perror
 
@@ -75,7 +68,8 @@ token_t slang_create_error_token(int line_number, int col_number);
 extern slang_errno_state_t *global_slang_errno_state;
 
 // This macro acts like a function, so lowercase is OK here.
-#define raise_error(file_name, token, extra_data) slang_queue_error(slang_create_error(file_name, token, extra_data), global_slang_errno_state)
+#define raise_error(file_name, token, extra_data) slang_queue_error(slang_create_error(file_name, token, extra_data), global_slang_errno_state);\
+	RESET_ERRNO
 
 #define CLEAR_ERROR_QUEUE RESET_ERRNO;\
 	while (global_slang_errno_state->has_error == true) {\

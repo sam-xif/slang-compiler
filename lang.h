@@ -36,6 +36,9 @@ typedef struct lang_var {
 typedef struct lang_state {
 	list_t *tok_list;
 
+	FILE *fp;
+	const char *file_name;
+
 	int scanner_index;
 	int parser_index;
 	int cfg_index;

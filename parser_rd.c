@@ -23,14 +23,14 @@
 
 
 // Prototype needed to alleviate errors.
-static bool _process_rule(cfg_rule_t *cur_rule, parser_t *parse, pt_node_t *parent);
+static bool _process_rule(cfg_rule_t *cur_rule, parser_t *parse, st_node_t *parent);
 
 
 // If output is true, the parse->index is set to the next token to be matched. 
 // If false, parse->index is the same as input
 // This function is guaranteed not to modify parse->save_index.
 static bool _check_match(match_t *match, match_t *next_match, parser_t *parse,
-	pt_node_t *parent, int *out_times_matched, bool *out_is_terminal) {
+	st_node_t *parent, int *out_times_matched, bool *out_is_terminal) {
 
 	int save_index = parse->index;
 
@@ -45,11 +45,11 @@ static bool _check_match(match_t *match, match_t *next_match, parser_t *parse,
 	if (match->match_token.type == token_epsilon) {
 		// Immediately return true if epsilon is being matched, since it always matches with everything.
 		// We don't have to advance index either, since epsilon represents the empty string.
-		pt_node_t *tmp_child = MALLOC_ONE(pt_node_t);
+		st_node_t *tmp_child = MALLOC_ONE(st_node_t);
 		tmp_child->type = NODE_LEAF;
 		tmp_child->parent = parent;
 		tmp_child->data = match->match_token;
-		tmp_child->children = list_alloc(NODE_LIST_DEFAULT_CAPACITY, sizeof(pt_node_t *));
+		tmp_child->children = list_alloc(NODE_LIST_DEFAULT_CAPACITY, sizeof(st_node_t *));
 		tmp_child->child_index = parent->children->length;
 
 		list_add_item(&tmp_child, parent->children);
@@ -61,12 +61,12 @@ static bool _check_match(match_t *match, match_t *next_match, parser_t *parse,
 
 	if (cfg_is_start_symbol(&(match->match_token), parse->grammar)) {
 		const char *name = tok_to_str(match->match_token);
-		pt_node_t *tmp_child = MALLOC_ONE(pt_node_t);
+		st_node_t *tmp_child = MALLOC_ONE(st_node_t);
 
 		tmp_child->type = NODE_NT;
 		tmp_child->parent = parent;
 		tmp_child->data = match->match_token;
-		tmp_child->children = list_alloc(NODE_LIST_DEFAULT_CAPACITY, sizeof(pt_node_t *));
+		tmp_child->children = list_alloc(NODE_LIST_DEFAULT_CAPACITY, sizeof(st_node_t *));
 		tmp_child->child_index = parent->children->length;
 		// Assumes parent has a list allocated
 		list_add_item(&tmp_child, parent->children);
@@ -97,7 +97,7 @@ static bool _check_match(match_t *match, match_t *next_match, parser_t *parse,
 		&& num_times_matched < upper_bound) {
 
 		// Insert code to add to list here
-		pt_node_t *tmp_child = MALLOC_ONE(pt_node_t);
+		st_node_t *tmp_child = MALLOC_ONE(st_node_t);
 		tmp_child->type = NODE_LEAF;
 		tmp_child->data = GET_TOKEN_AT(tok_list, i);
 		tmp_child->parent = parent;
@@ -131,8 +131,8 @@ return_false:
 	return false;
 }
 
-bool _process_rule(cfg_rule_t *cur_rule, parser_t *parse, pt_node_t *parent) {
-	pt_node_t *save_node = MALLOC_ONE(pt_node_t);
+bool _process_rule(cfg_rule_t *cur_rule, parser_t *parse, st_node_t *parent) {
+	st_node_t *save_node = MALLOC_ONE(st_node_t);
 	*save_node = *parent;
 	save_node->children = NULL;
 
@@ -190,13 +190,15 @@ bool _process_rule(cfg_rule_t *cur_rule, parser_t *parse, pt_node_t *parent) {
 						STRCAT(dest, dest_size, "\"");
 
 					// Save the current errno value.
-					errno_t save_errno = errno;
+
+					// No need to save errno because the error flag has_error is set when an error is raised. That should be the error indicator
+					//errno_t save_errno = errno;
 
 					errno = GET_ITEM_AS(cur_match_list->matches, j, match_t)->error_code;
 					raise_error("unknown", GET_TOKEN_AT(parse->token_list, parse->index), dest);
 
 					// Restore errno
-					errno = save_errno;
+					//errno = save_errno;
 
 					// Clean up
 					free(dest);
@@ -206,9 +208,9 @@ bool _process_rule(cfg_rule_t *cur_rule, parser_t *parse, pt_node_t *parent) {
 				// Restore original state
 				parse->index = save_index;
 
-				parser_free_pt(parent, false);
+				parser_free_st(parent, false);
 				*parent = *save_node;
-				parent->children = list_alloc(NODE_LIST_DEFAULT_CAPACITY, sizeof(pt_node_t *));
+				parent->children = list_alloc(NODE_LIST_DEFAULT_CAPACITY, sizeof(st_node_t *));
 
 				// Set status to false and break out of loop
 				ret = false;
@@ -229,14 +231,15 @@ bool _process_rule(cfg_rule_t *cur_rule, parser_t *parse, pt_node_t *parent) {
 
 // Sets the parser token list to the tok_list parameter by default
 // Returns NULL on error or if grammar doesn't match input
-pt_node_t *parse_recursive_descent(token_list_t *tok_list, parser_t *parse) {
+st_node_t *parse_recursive_descent(token_list_t *tok_list, parser_t *parse) {
 	parse->token_list = tok_list;
 	parse->state = PARSE_WORKING;
 
 	// Creates the root node of the parse tree.
-	pt_node_t *root = MALLOC_ONE(pt_node_t);
-	root->parent = NULL;
-	root->children = list_alloc(NODE_LIST_DEFAULT_CAPACITY, sizeof(pt_node_t *));
+	st_node_t *root = MALLOC_ONE(st_node_t);
+	root->parent = NULL; 
+	root->child_index = 0;
+	root->children = list_alloc(NODE_LIST_DEFAULT_CAPACITY, sizeof(st_node_t *));
 	root->type = NODE_ROOT;
 
 	list_t *rule_list = parse->grammar->rule_list;
@@ -248,22 +251,16 @@ pt_node_t *parse_recursive_descent(token_list_t *tok_list, parser_t *parse) {
 	 */
 
 
-	int i;
-	for (i = 0; i < rule_list->length; i++) {
-		root->data = *(GET_ITEM_AS(rule_list, i, cfg_rule_t)->start_symbol);
-
-		
-		if (_process_rule(GET_ITEM_AS(parse->grammar->rule_list, i, cfg_rule_t), parse, root) == true) {
-			if (GET_ITEM_AS(tok_list, parse->index, token_t)->type == token_end_of_stream) {
-				parse->state = PARSE_FINISH;
-				parse->error = SLANG_NO_ERR;
-				parse->result = root;
-				return root;
-			}
-			else break;
+	root->data = *(GET_ITEM_AS(rule_list, 0, cfg_rule_t)->start_symbol);
+	if (_process_rule(GET_ITEM_AS(rule_list, 0, cfg_rule_t), parse, root) == true) {
+		if (GET_ITEM_AS(tok_list, parse->index, token_t)->type == token_end_of_stream) {
+			parse->state = PARSE_FINISH;
+			parse->error = SLANG_NO_ERROR;
+			parse->result = root;
+			return root;
 		}
-		
 	}
+		
 	
 
 	parse->state = PARSE_ERR;
@@ -275,7 +272,7 @@ pt_node_t *parse_recursive_descent(token_list_t *tok_list, parser_t *parse) {
 }
 
 
-bool _rd_rewriter_selector(pt_node_t *node, bool *usable) {
+bool _rd_rewriter_selector(st_node_t *node, bool *usable) {
 	if (node->type == NODE_NT) {
 		const char *node_name = tok_to_str(node->data);
 		if (node_name == NULL) {
@@ -297,11 +294,11 @@ bool _rd_rewriter_selector(pt_node_t *node, bool *usable) {
 
 			for (i = node->children->length - 1; i >= 0; i--) {
 				list_insert_item(GET_ITEM_AT(node->children, i), node->child_index, node->parent->children);
-				(*GET_ITEM_AS(node->parent->children, node->child_index, pt_node_t *))->parent = node->parent;
+				(*GET_ITEM_AS(node->parent->children, node->child_index, st_node_t *))->parent = node->parent;
 			}
 
 			for (i = 0; i < node->parent->children->length; i++) {
-				(*GET_ITEM_AS(node->parent->children, i, pt_node_t *))->child_index = i;
+				(*GET_ITEM_AS(node->parent->children, i, st_node_t *))->child_index = i;
 			}
 
 			// Release the node from memory, since it is now completely removed from the tree.
@@ -313,10 +310,10 @@ bool _rd_rewriter_selector(pt_node_t *node, bool *usable) {
 		}
 		else {
 			// TODO: Put all these messages into a slang errno function.
-			errno_t save_errno = errno;
+			//errno_t save_errno = errno;
 			errno = SLANG_BAD_PARSE_TREE;
 			raise_error("parser_rd.c", slang_create_error_token(305, 0), NULL);
-			errno = save_errno;
+			//errno = save_errno;
 		}
 
 		free(node_name);
@@ -325,11 +322,11 @@ bool _rd_rewriter_selector(pt_node_t *node, bool *usable) {
 }
 
 
-pt_node_t *parse_rd_rewrite_tree(pt_node_t *root) {
+st_node_t *parse_rd_rewrite_tree(st_node_t *root) {
 	/*
 	 * In this function, move the left factor children onto the parent nodes.
 	 * Just create a static selector function and call pt_select_nodes.
 	 */
-	list_free(pt_select_nodes(root, &_rd_rewriter_selector), NULL);
+	list_free(st_select_nodes(root, &_rd_rewriter_selector), NULL);
 	return root;
 }

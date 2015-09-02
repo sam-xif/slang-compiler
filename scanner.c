@@ -3,71 +3,91 @@
 
 // Scans a file opened in "rb" mode
 // TODO: Make the return type a bool possibly. (For code consistency)
-void scan_file(FILE *fp, scanner_t *scan) {
-	scan->fp = fp;
-	if (scan->fp == NULL) {
-		puts("Error: File pointer is null");
-		errno = ENOENT;
+void scan_file(const char *file_name, scanner_t *scan) {
+	scan->file_name = file_name;
+	scan->scanning_file = true;
+	FILE *fp;
+
+	if (file_name == NULL) {
+		errno = SLANG_INVALID_ARG;
+		raise_error("scanner.c", slang_create_error_token(11, 0), "fp cannot be NULL");
 		return;
 	}
-	else {
-		scan->token_list = list_alloc(TOKEN_LIST_DEFAULT_CAPACITY, sizeof(token_t));
+	if (scan == NULL) {
+		errno = SLANG_INVALID_ARG;
+		raise_error("scanner.c", slang_create_error_token(11, 0), "scan cannot be NULL");
+		return;
+	}
+	if (fopen_s(&fp, file_name, "rb") != NOERROR) {
+		errno = SLANG_IO_ERROR;
+		raise_error("scanner.c", slang_create_error_token(24, 0), "Error occurred while opening file");
+		return;
+	}
 
-		if (fseek(fp, 0, SEEK_END) != 0) {
-			if (ferror(fp)) puts("Error while seeking in the file");
-			scan->state = SCAN_ERR;
-			return;
-		}
-		if ((scan->buf_length = (int)ftell(fp)) == -1) {
-			slang_perror("Error", "scanner.c", 22);
-			scan->state = SCAN_ERR;
-			return;
-		}
-		if (fseek(fp, 0, SEEK_SET) != 0) {
-			if (ferror(fp)) puts("Error while seeking in the file");
-			scan->state = SCAN_ERR;
-			return;
-		}
-		if ((scan->buf = (char *)malloc((sizeof(char) * scan->buf_length) + 1)) == NULL) {
-			puts("Error while allocating memory");
-			scan->state = SCAN_ERR;
-			return;
-		}
-		if (fread(scan->buf, sizeof(char), scan->buf_length, fp) == 0) {
-			if (ferror(fp)) {
-				errno = SLANG_IO_ERR;
-				printf("scanner.c:39: Error occurred while reading file");
-			}
-			if (feof(fp)) puts(":\nEOF was reached"); // Appends a newline char
-			else if (errno != NOERROR) slang_perror("Error", "scanner.c", 43);
-			else printf("\n");
-			scan->state = SCAN_ERR;
-			return;
-		}
-		scan->buf[scan->buf_length] = '\0'; // Add null-terminating character to the end of the buffer
+	scan->token_list = list_alloc(TOKEN_LIST_DEFAULT_CAPACITY, sizeof(token_t));
 
-		int last_newline_index = 0;
-
-		scan->state = SCAN_READING;
-		while (scan->index < scan->buf_length) {
-			token_t *t = scanner_get_token(scan->buf, &scan->index, scan->buf_length);
-			if (t != NULL) {
-				if (t->type == token_newline) {
-					last_newline_index = t->index_in_buf + 1;
-					scan->line_number++;
-				}
-				t->line_number = scan->line_number;
-				t->col_number = t->index_in_buf - last_newline_index;
-				list_add_item(t, scan->token_list);
-			}
-			else {
-				puts("Unexpected EOF or other error while scanning tokens");
-				scan->state = SCAN_ERR;
-				errno = ENOENT;
-				return;
-			}
-			free(t);
+	if (fseek(fp, 0, SEEK_END) != 0) {
+		if (ferror(fp)) {
+			errno = SLANG_IO_ERROR;
+			raise_error("scanner.c", slang_create_error_token(20, 0), "Seek operation failed");
 		}
+		scan->state = SCAN_ERR;
+		return;
+	}
+	if ((scan->buf_length = (int)ftell(fp)) == -1) {
+		scan->state = SCAN_ERR;
+		errno = SLANG_IO_ERROR;
+		raise_error("scanner.c", slang_create_error_token(25, 0), "ftell failed");
+		return;
+	}
+	if (fseek(fp, 0, SEEK_SET) != 0) {
+		if (ferror(fp)) puts("Error while seeking in the file");
+		scan->state = SCAN_ERR;
+		return;
+	}
+	if ((scan->buf = (char *)malloc((sizeof(char) * scan->buf_length) + 1)) == NULL) {
+		scan->state = SCAN_ERR;
+		errno = SLANG_MEM_ERROR;
+		raise_error("scanner.c", slang_create_error_token(36, 0), NULL);
+		return;
+	}
+	if (fread(scan->buf, sizeof(char), scan->buf_length, fp) == 0) {
+		if (ferror(fp)) {
+			errno = SLANG_IO_ERROR;
+			printf("scanner.c:39: Error occurred while reading file");
+		}
+		if (feof(fp)) puts(":\nEOF was reached"); // Appends a newline char
+		else if (errno != NOERROR) slang_perror("Error", "scanner.c", 43);
+		else printf("\n");
+		scan->state = SCAN_ERR;
+		return;
+	}
+
+	// Cast away the const to add a null-terminator
+	((char *)scan->buf)[scan->buf_length] = '\0'; 
+
+	int last_newline_index = 0;
+
+	scan->state = SCAN_READING;
+	while (scan->index < scan->buf_length) {
+		token_t *t = scanner_get_token(scan->buf, &scan->index, scan->buf_length);
+		if (t != NULL) {
+			if (t->type == token_newline) {
+				last_newline_index = t->index_in_buf + 1;
+				scan->line_number++;
+			}
+			t->line_number = scan->line_number;
+			t->col_number = t->index_in_buf - last_newline_index;
+			list_add_item(t, scan->token_list);
+		}
+		else {
+			//puts("Unexpected EOF or other error while scanning tokens");
+			scan->state = SCAN_ERR;
+			errno = SLANG_UNEXPECTED_EOF;
+			raise_error("scanner.c", GET_TOKEN_AT(scan->token_list, scan->token_list->length - 1), NULL);
+			return;
+		}
+		free(t);
 	}
 
 	// Add an end_of_stream token
@@ -81,6 +101,7 @@ void scan_file(FILE *fp, scanner_t *scan) {
 
 	scan->state = SCAN_FINISH;
 }
+
 
 void scan_buffer(const char *buf, int length, scanner_t *scan) {
 	// Assume that scan->buf != buf
@@ -103,9 +124,10 @@ void scan_buffer(const char *buf, int length, scanner_t *scan) {
 			list_add_item(t, scan->token_list);
 		}
 		else {
-			puts("Unexpected EOF or other error while scanning tokens");
+			//puts("Unexpected EOF or other error while scanning tokens");
 			scan->state = SCAN_ERR;
-			errno = ENOENT;
+			errno = SLANG_UNEXPECTED_EOF;
+			raise_error("scanner.c", GET_TOKEN_AT(scan->token_list, scan->token_list->length - 1), NULL);
 			return;
 		}
 		free(t);
@@ -133,8 +155,8 @@ void scan_buffer(const char *buf, int length, scanner_t *scan) {
  */
 token_t *scanner_get_token(const char *str, int *index, int length) {
 	if (*index >= length) {
-		puts("Error: End of buffer has been reached.");
-		errno = ENOENT;
+		errno = SLANG_UNEXPECTED_EOF;
+		raise_error("scanner.c", slang_create_error_token(144, 0), NULL);
 		return NULL;
 	}
 	else {
@@ -187,8 +209,8 @@ token_t *scanner_get_token(const char *str, int *index, int length) {
 		finish_string:
 
 			if (tmp > length) {
-				puts("Error: Unexpected EOF"); // TODO: Add line numbers to the errors to make them more informative
-				errno = ENOENT;
+				errno = SLANG_UNEXPECTED_EOF;
+				raise_error("scanner.c", slang_create_error_token(144, 0), NULL);
 				return NULL;
 			}
 
@@ -307,8 +329,8 @@ token_t *scanner_get_token(const char *str, int *index, int length) {
 							tmp++;
 						}
 						else {
-							puts("Error: Too many decimal points in numeral");
-							errno = ENOENT;
+							errno = SLANG_SYNTAX_ERROR;
+							raise_error("scanner.c", slang_create_error_token(318, 0), "Too many decimal points in number");
 							return NULL;
 						}
 					}
@@ -335,8 +357,8 @@ token_t *scanner_get_token(const char *str, int *index, int length) {
 					t.data_ptr = str + *index;
 				}
 				else {
-					printf("All attempts to match the token at %i have failed. Possibly a syntax error?\n", init_index);
-					errno = ENOENT;
+					errno = SLANG_SYNTAX_ERROR;
+					raise_error("scanner.c", slang_create_error_token(347, 0), "The token cannot be matched");
 					return NULL;
 				}
 			}
@@ -391,6 +413,7 @@ void scanner_free(scanner_t *scan, bool free_buf) {
 	if (scan->fp != NULL) {
 		if (fclose(scan->fp) == EOF) {
 			puts("Error closing file when freeing scanner data memory");
+			//
 			return;
 		}
 	}
@@ -404,10 +427,10 @@ void scanner_free(scanner_t *scan, bool free_buf) {
 
 // Allocates a new scanner object and sets all of its values to 0
 scanner_t *scanner_alloc() {
-	scanner_t *scan = (scanner_t *)malloc(sizeof(scanner_t));
+	scanner_t *scan = MALLOC_ONE(scanner_t);
 	if (scan == NULL) {
-		puts("Error while allocating memory for scanner object");
-		errno = ENOMEM;
+		errno = SLANG_MEM_ERROR;
+		raise_error("scanner.c", slang_create_error_token(417, 0), NULL);
 		return NULL;
 	}
 	scan->fp = NULL;
@@ -438,9 +461,9 @@ int scanner_peek_char(int index, scanner_t *scan) {
 int scanner_find_next_char(char c, scanner_t *scan) {
 	int index;
 	
-	if (scan == NULL) { errno = EINVAL; return -1; }
-	if (scan->buf == NULL) { errno = EINVAL; return -1; }
-	if (scan->buf_length == 0) { errno = EINVAL; return -1; }
+	if (scan == NULL) { errno = SLANG_INVALID_ARG; return -1; }
+	if (scan->buf == NULL) { errno = SLANG_INVALID_ARG; return -1; }
+	if (scan->buf_length == 0) { errno = SLANG_INVALID_ARG; return -1; }
 
 	for (index = scan->index; index < scan->buf_length; index++) {
 		if (scan->buf[index] == c) break; 
@@ -452,9 +475,9 @@ int scanner_find_next_char(char c, scanner_t *scan) {
 int scanner_find_next_char_from(char c, int index, scanner_t *scan) {
 	int _index;
 	
-	if (scan == NULL) { errno = EINVAL; return -1; }
-	if (scan->buf == NULL) { errno = EINVAL; return -1; }
-	if (scan->buf_length <= 0) { errno = EINVAL; return -1; }
+	if (scan == NULL) { errno = SLANG_INVALID_ARG; return -1; }
+	if (scan->buf == NULL) { errno = SLANG_INVALID_ARG; return -1; }
+	if (scan->buf_length <= 0) { errno = SLANG_INVALID_ARG; return -1; }
 
 	for (_index = index; _index < scan->buf_length; _index++) {
 		if (scan->buf[_index] == c) break;

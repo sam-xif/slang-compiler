@@ -84,7 +84,9 @@ int cfg_parse_one(list_t *tok_list, int start_index, cfg_t *cfg) {
 			// Pre-Increment i to skip to next token
 			if (GET_TOKEN_AT(tok_list, ++i).type != '(') {
 				puts("Syntax error in language file.");
-				errno = ENOENT;
+				errno = SLANG_SYNTAX_ERROR;
+				// lang.txt for now. Eventually pass filename as parameter
+				raise_error("lang.txt", GET_TOKEN_AT(tok_list, i), NULL);
 				return -1;
 			}
 			
@@ -106,7 +108,9 @@ int cfg_parse_one(list_t *tok_list, int start_index, cfg_t *cfg) {
 
 			if (GET_TOKEN_AT(tok_list, ++i).type != ')') {
 				puts("Syntax error in language file.");
-				errno = ENOENT;
+				errno = SLANG_SYNTAX_ERROR;
+				// lang.txt for now. Eventually pass filename as parameter
+				raise_error("lang.txt", GET_TOKEN_AT(tok_list, i), NULL);
 				return -1;
 			}
 
@@ -129,7 +133,7 @@ int cfg_parse_one(list_t *tok_list, int start_index, cfg_t *cfg) {
 
 		// Maybe don't malloc here..
 		match_t *match = MALLOC_ONE(match_t);
-		match->error_code = SLANG_NO_ERR;
+		match->error_code = SLANG_NO_ERROR;
 		match->error_msg = NULL;
 
 		if (GET_TOKEN_AT(tok_list, ++i).type == '[') {
@@ -144,7 +148,7 @@ int cfg_parse_one(list_t *tok_list, int start_index, cfg_t *cfg) {
 					i = get_next_after_whitespace(++i, tok_list);
 					
 					if (GET_TOKEN_AT(tok_list, i).type != token_integer) {
-						errno = SLANG_SYNTAX_ERR;
+						errno = SLANG_SYNTAX_ERROR;
 						raise_error("lang.txt", GET_TOKEN_AT(tok_list, i), NULL);
 						return -1;
 					}
@@ -158,7 +162,7 @@ int cfg_parse_one(list_t *tok_list, int start_index, cfg_t *cfg) {
 					i = get_next_after_whitespace(++i, tok_list);
 
 					if (GET_TOKEN_AT(tok_list, i).type != token_string) {
-						errno = SLANG_SYNTAX_ERR;
+						errno = SLANG_SYNTAX_ERROR;
 						raise_error("lang.txt", GET_TOKEN_AT(tok_list, i), NULL);
 						return -1;
 					}
@@ -167,7 +171,7 @@ int cfg_parse_one(list_t *tok_list, int start_index, cfg_t *cfg) {
 					match->error_msg = error_msg;
 				}
 				else {
-					errno = SLANG_SYNTAX_ERR;
+					errno = SLANG_SYNTAX_ERROR;
 					raise_error("lang.txt", slang_create_error_token(0, 0), NULL);
 					return -1;
 				}
@@ -175,7 +179,7 @@ int cfg_parse_one(list_t *tok_list, int start_index, cfg_t *cfg) {
 				// Advance one more time
 				i = get_next_after_whitespace(++i, tok_list);
 				if (GET_TOKEN_AT(tok_list, i).type != ']') {
-					errno = SLANG_SYNTAX_ERR;
+					errno = SLANG_SYNTAX_ERROR;
 					raise_error("lang.txt", slang_create_error_token(0, 0), NULL);
 					return -1;
 				}

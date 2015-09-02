@@ -14,7 +14,7 @@ void *dequeue(queue_t *queue) {
 		RETURN_VAL_IF_ERROR(MEMCPY(ret, queue->element_size, peek, queue->element_size), NULL);
 	}
 	else {
-		errno = SLANG_MEM_ERR;
+		errno = SLANG_MEM_ERROR;
 		raise_error("queue.c", slang_create_error_token(16, 0), NULL);
 		return NULL;
 	}
